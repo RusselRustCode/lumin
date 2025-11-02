@@ -1,0 +1,24 @@
+# Python
+.venv/
+python_app/
+*.py
+pyproject.toml
+
+# Rust
+/target/
+Cargo.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+#Docker
+Docker
+docker-compose.yml
+*.yml
