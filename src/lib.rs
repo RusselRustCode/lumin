@@ -3,7 +3,7 @@ use ndarray::{Array1, Array2};
 use rand::prelude::*;
 use rand_distr::{Distribution, Normal};
 use pyo3::prelude::*;
-use numpy::{PyArray2, PyArrayMethods};
+use numpy::{PyArray2, PyArrayMethods, IntoPyArray};
 #[pyclass]
 pub struct PgmProcessor {
     image: GrayImage
@@ -37,6 +37,35 @@ impl PgmProcessor {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Не получилось сохранить изображение {}", e)))
     }
 
+
+    #[staticmethod]
+    pub fn from_numpy(array: &Bound<'_, PyArray2<u8>>) -> PyResult<Self> {
+        let array = unsafe {array.as_array()};
+        let (height, width) = array.dim();
+        
+        let mut image = GrayImage::new(width as u32, height as u32);
+        
+        for (y, row) in array.rows().into_iter().enumerate() {
+            for (x, &pixel) in row.iter().enumerate() {
+                image.put_pixel(x as u32, y as u32, Luma([pixel]));
+            }
+        }
+        
+        Ok(PgmProcessor { image })
+    }
+
+    
+    pub fn to_numpy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<u8>>>{
+        let (width, height) = self.image.dimensions();
+        let mut array = Array2::<u8>::zeros((width as usize, height as usize));
+        for x in 0..width{
+            for y in 0..height{
+                array[[y as usize, x as usize]] = self.image.get_pixel(x, y)[0]
+            }
+        }
+
+        Ok(array.into_pyarray(py))
+    }
     // pub fn save_as_pgm(&self, path: &str) -> PyResult<()> {
     //     save_buffer(
     //         path,
@@ -55,6 +84,7 @@ impl PgmProcessor {
         self.image.as_raw().clone()
     }
 
+    
 
     pub fn mean_filter(&self, kernel_size: usize) -> PyResult<Self> {
         let output = self.mean_filter_impl(kernel_size);
@@ -828,8 +858,8 @@ impl PgmProcessor {
             1.0,  2.0,  1.0,
         ]).unwrap();
 
-        for y in 1..(height - 1) {
-            for x in 1..(width - 1) {
+        for x in 1..(width - 1) {
+            for y in 1..(height - 1) {
                 let mut pixel_x: f32 = 0.0;
                 let mut pixel_y: f32 = 0.0;
 
@@ -863,8 +893,8 @@ impl PgmProcessor {
         let (width, height) = self.image.dimensions();
         let mut suppresed = GrayImage::new(width, height);
 
-        for y in 1..(height-1) as usize{
-            for x in 1..(width - 1) as usize{
+        for x in 1..(width-1) as usize{
+            for y in 1..(height - 1) as usize{
                 let angle = directions[[x, y]];
                 let mag = magnitude.get_pixel(x as u32, y as u32)[0] as f32;
 
@@ -912,8 +942,8 @@ impl PgmProcessor {
         let mut visited = Array2::from_elem((width as usize, height as usize), false);
         let mut strong_edges = Vec::new();
 
-        for y in 0..height{
-            for x in 0..width{
+        for x in 0..width{
+            for y in 0..height{
                 let mag = suppresed.get_pixel(x , y)[0] as f32;
 
                 if mag >= max_thres{
